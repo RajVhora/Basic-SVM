@@ -8,7 +8,7 @@ from matplotlib.animation import FFMpegWriter
 
 # Clear variables and close all figures
 plt.close('all')
-np.random.seed(42)
+np.random.seed(43)
 
 # Generate dataset
 n = 100
@@ -22,7 +22,7 @@ xtest1, xtest2 = np.meshgrid(np.arange(-1, 1.01, 0.01)*3.5, np.arange(-1, 1.01, 
 xtest = np.vstack((xtest1.ravel(), xtest2.ravel())).T
 nn = len(xtest1)
 kernel = 'gaussian'
-kerneloption = [1]
+kerneloption = np.array([[1]])
 verbose = 1
 
 # Compute regularization path

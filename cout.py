@@ -6,7 +6,9 @@ def cout(H, x, y, C, ind, c, A, b, lambd):
     posok = np.where(ind > 0)[0]
     posA = np.where(ind == 0)[0]     # liste des contriantes saturees  
     posB = np.where(ind == -1)[0]    # liste des contriantes saturees  
-    X[posok] = x  
+    #X[posok] = x
+    for i in range(len(posok)):
+        X[posok[i],0] = x[i]  
     X[posB] = C[posB]
     
     J = 0.5 * np.dot(np.dot(X.T, H), X) - np.dot(c.T, X)

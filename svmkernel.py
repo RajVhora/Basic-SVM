@@ -63,27 +63,24 @@ def svmkernel(x, kernel='gaussian', kerneloption=[1], xsup=None, frame=None, vec
 
     
     elif kernel.lower() == 'gaussian':
-        nk, nk2 = kerneloption.shape if isinstance(kerneloption, np.ndarray) else (len(kerneloption), 2)
-        
+        nk, nk2 = kerneloption.shape
+
         if nk != nk2:
             if nk > nk2:
                 kerneloption = kerneloption.T
-                nk2 = nk
-            else:
-                kerneloption = np.ones(n2) * kerneloption[0]
-                nk2 = n2
-        
-        if nk2 != n2 and nk2 != n2 + 1:
-            raise ValueError('Number of kerneloption is not compatible with data...')
-        elif nk2 == n2:
-            metric = np.diag(1/kerneloption**2)
         else:
-            metric = np.diag(1/kerneloption[1:]**2)
-        
-        ps = np.dot(x, metric).dot(xsup.T)
-        normx = np.sum(x**2 * metric, axis=1)
-        normxsup = np.sum(xsup**2 * metric, axis=1)
-        ps = -2*ps + normx[:, np.newaxis] + normxsup[np.newaxis, :]
+            kerneloption = np.ones(n2) * kerneloption
+            
+        if len(kerneloption[0]) != n2 and len(kerneloption[0]) != n2+1:
+            raise ValueError('Number of kerneloption is not compatible with data...')
+
+        metric = np.diagflat(1.0 / kerneloption**2)
+        ps = np.dot(x, np.dot(metric, xsup.T))
+        nps, pps = ps.shape
+        normx = np.sum(np.matmul(x**2, metric), axis=1)
+        normxsup = np.sum(np.matmul(xsup**2, metric), axis=1)
+        ps = -2*ps + np.tile(normx.reshape(-1, 1), (1, pps)) + np.tile(normxsup.reshape(1, -1), (nps, 1))
+
         K = np.exp(-ps/2)
     
     elif kernel.lower() == 'htrbf':
@@ -135,7 +132,7 @@ def svmkernel(x, kernel='gaussian', kerneloption=[1], xsup=None, frame=None, vec
     else:
         raise ValueError('Invalid kernel type specified.')
     
-    return K, kerneloption
+    return K
 
     
 

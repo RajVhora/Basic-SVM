@@ -4,7 +4,8 @@ def monqp(H, c, A, b, C, l=0, verbose=0, X=None, ps=None, xinit=None):
     n, d = H.shape
     nl, nc = c.shape
     nlc, ncc = A.shape
-    nlb, ncb = b.shape
+    nlb, ncb = (1,1) if isinstance(b, float) else b.shape
+    Cs1, Cs2 = (1,1) if isinstance(C, float) or isinstance(C,int) else C.shape
     if d != n:
         raise ValueError('H must be a square matrix n by n')
 
@@ -23,7 +24,7 @@ def monqp(H, c, A, b, C, l=0, verbose=0, X=None, ps=None, xinit=None):
     if ncc != nlb:
         raise ValueError('A\' and b must have the same number of row')
 
-    if C.shape[0] != nl:
+    if Cs1 != nl:
         C = C * np.ones((nl, 1))
 
     if xinit is None:
@@ -37,7 +38,7 @@ def monqp(H, c, A, b, C, l=0, verbose=0, X=None, ps=None, xinit=None):
 
     fid = 1 # default value, current matlab window
 
-    OO = np.zeros((ncc,))
+    OO = np.zeros((ncc,1))
     H = H + l * np.eye(len(H)) # preconditioning
 
     xnew = -1 * np.ones(C.shape)
@@ -81,11 +82,17 @@ def monqp(H, c, A, b, C, l=0, verbose=0, X=None, ps=None, xinit=None):
     if np.sum(A == 0):
         ncc = 0
 
-    U, testchol = np.linalg.cholesky(H, lower=True)
+    try:
+        U = np.linalg.cholesky(H)
+        testchol = 0
+    except:
+        testchol = 1
+
+    
     firstchol = 1
 
 
-    #Main LOop
+    #Main Loop
 
     Jold = 10000000000000000000  
     # C = Jold # for the cost function
@@ -100,8 +107,9 @@ def monqp(H, c, A, b, C, l=0, verbose=0, X=None, ps=None, xinit=None):
     while STOP != 1:
 
         nbiter += 1
-        indd = np.zeros(n)
-        indd[ind] = ind
+        indd = np.zeros((n,1))
+        for i in ind:
+            indd[i,0] = i
         nsup = len(ind)
         indd[indsuptot] = -1
 
@@ -118,108 +126,121 @@ def monqp(H, c, A, b, C, l=0, verbose=0, X=None, ps=None, xinit=None):
             elif (Jold - J) > 0:
                 print("| %11.4e | %8.4f | %6.0f | %6.0f |" % (J, min((Jold - J) / abs(Jold), 99.9999), nsup, len(indsuptot)))
             else:
-                print("| %11.4e | %8.4f | %6.0f | %6.0f | bad mouve " % (J, max((Jold - J) / abs(Jold), -99.9999), nsup, len(indsuptot)))
+                print("| %11.4e | %8.4f | %6.0f | %6.0f | bad move " % (J, max((Jold - J) / abs(Jold), -99.9999), nsup, len(indsuptot)))
             Jold = J
-    ce = c[ind]
-    be = b
-    if len(indsuptot)!=0:
-        Cmat = np.ones((len(ind), 1)) * C[indsuptot]
-        if ce.shape != np.sum(Cmat * H[ind][:, indsuptot], axis=1).shape:
-            keyboard
-        ce = ce - np.sum(Cmat * H[ind][:, indsuptot], axis=1)
-        Cmat = C[indsuptot][:, np.newaxis] * np.ones((1, A.shape[1]))
-        be = be - np.sum(Cmat * A[indsuptot, :], axis=0).T
 
-    At = A[ind, :].T
-    Ae = A[ind, :]
+        ce = c[ind]
+        be = b
+        if len(indsuptot)!=0:
+            Cmat = np.ones((len(ind), 1)) * C[indsuptot].T
+            #if ce.shape != np.sum(Cmat * H[ind][:, indsuptot], axis=1).shape:
+            #    keyboard
+            ce = ce - np.sum(np.multiply(Cmat, H[ind][:, indsuptot]), axis=1)[0]
+            Cmat = C[indsuptot] * np.ones((1, A.shape[1]))
+            be = be - np.sum(Cmat * A[indsuptot, :], axis=0).T
 
-    if testchol == 0:
-        auxH = H[ind][:, ind]
-        U = np.linalg.cholesky(auxH)
+        At = A[ind, :].T
+        Ae = A[ind, :]
+
+        if testchol == 0:
+            #auxH = H[ind,ind]
+            auxH = H[ind,:][:,ind]
+            # reshape auxH to 2d by adding a dimension of size 1
+            #auxH = auxH.reshape(auxH.shape[0], 1)
+            try:
+                U = np.linalg.cholesky(auxH)
+                testchol = 0
+            except:
+                testchol = 1
         
-        M = At @ (np.linalg.solve(U.T, np.linalg.solve(U, Ae)))
-        d = np.linalg.solve(U.T, np.linalg.solve(U, ce))
-        d = At @ d - be
+            M = At @ (np.linalg.solve(U.T, np.linalg.solve(U, Ae)))
+            d = np.linalg.solve(U.T, np.linalg.solve(U, ce))
+            d = At @ d - be
 
-        if np.linalg.cond(M) < l:
-            M += l * np.eye(M.shape[0])
-        lambda_ = np.linalg.solve(M, d)
+            if np.linalg.cond(M) < l:
+                M += l * np.eye(M.shape[0])
+            lambda_ = np.linalg.solve(M, d)
 
-        xnew = np.linalg.solve(auxH, ce - Ae @ lambda_)
-    else:
-        auxM = At @ np.linalg.solve(auxH, Ae)
-    M = auxM.T @ auxM
-    d = np.linalg.solve(auxH, ce)
-    d = At @ d - be
+            xnew = np.linalg.solve(auxH, ce - Ae @ lambda_)
 
-    if np.linalg.cond(M) < l:
-        M += l * np.eye(M.shape[0])
-    lambda_ = np.linalg.solve(M, d)
-    xnew = np.linalg.solve(auxH, ce - Ae @ lambda_)
-
-    minxnew = np.min(xnew)
-    minpos = np.argmin(xnew)
-
-    if (np.sum(xnew < 0) > 0 or np.sum(xnew > C[ind]) > 0) and len(ind) > ncc:
-        d = (xnew - x) + l
-        indad = np.where(xnew < 0)[0]
-        indsup = np.where(xnew > C[ind])[0]
-        tI, indmin = np.min(-x[indad] / d[indad]), np.argmin(-x[indad] / d[indad])
-        tS, indS = np.min((C[ind[indsup]] - x[indsup]) / d[indsup]), np.argmin((C[ind[indsup]] - x[indsup]) / d[indsup])
-        if np.isnan(tI):
-            tI = tS + 1
-        if np.isnan(tS):
-            tS = tI + 1
-        t = min(tI, tS)
-        x = x + t * d
-
-        if t == tI:
-            varcholupdate = ind[indad[indmin]]
-            indexcholupdate = indad[indmin]
-            directioncholupdate = -1
-            ind = np.delete(ind, indad[indmin])
-            x = np.delete(x, indad[indmin])
         else:
-            indexcholupdate = indsup[indS]
-            varcholupdate = ind[indsup[indS]]
-            directioncholupdate = -1
-            indsuptot = np.concatenate((indsuptot, ind[indsup[indS]]))
-            ind = np.delete(ind, ind[indsup[indS]])
-            x = np.delete(x, indsuptot)
-    else:
-        xt = np.zeros((n,1)) # keyboard
-        xt[ind] = xnew # keyboard
-        xt[indsuptot] = C[indsuptot]
-        indold = ind ## 03/01/2002
+            auxM = At @ np.linalg.solve(auxH, Ae)
+            M = auxM.T @ auxM
+            d = np.linalg.solve(auxH, ce)
+            d = At @ d - be
 
-        mu = H @ xt - c + A @ lambda_ # calcul des multiplicateurs de lagrange associées aux contraintes
+            if np.linalg.cond(M) < l:
+                M += l * np.eye(M.shape[0])
+            lambda_ = np.linalg.solve(M, d)
+            xnew = np.linalg.solve(auxH, ce - Ae @ lambda_)
 
-        indsat = np.arange(1,n+1) # on ne regarde que les contraintes saturées
-        indsat = np.setdiff1d(indsat, np.concatenate((ind, indsuptot)))
+        minxnew = np.min(xnew)
+        minpos = np.argmin(xnew)
 
-        mm, mpos = np.min(mu[indsat]), np.argmin(mu[indsat])
-        mmS, mposS = np.min(-mu[indsuptot]), np.argmin(-mu[indsuptot])
+        if (np.sum(xnew < 0) > 0 or np.sum(xnew > C[ind]) > 0) and len(ind) > ncc:
+            d = (xnew - x) + l
+            indad = np.where(xnew < 0)[0]
+            indsup = np.where(xnew > C[ind])[0]
+            tI, indmin = np.min(-x[indad] / d[indad]), np.argmin(-x[indad] / d[indad])
+            tS, indS = np.min((C[ind[indsup]] - x[indsup]) / d[indsup]), np.argmin((C[ind[indsup]] - x[indsup]) / d[indsup])
+            if np.isnan(tI):
+                tI = tS + 1
+            if np.isnan(tS):
+                tS = tI + 1
+            t = min(tI, tS)
+            x = x + t * d
 
-        if ((mm < -np.sqrt(eps)) and (mm is not None)) or ((mmS < -np.sqrt(eps)) and (mmS is not None)) and (nbiter < nbitermax):
-            if (len(indsuptot) == 0) or (mm < mmS):
-                ind = np.sort(np.concatenate((ind, [indsat[mpos]]))) # il faut rajouter une variable
-                x = xt[ind]
-                indexcholupdate = np.where(ind == indsat[mpos])[0][0]
-                varcholupdate = indsat[mpos]
-                directioncholupdate = 1 # remove
+            if t == tI:
+                varcholupdate = ind[indad[indmin]]
+                indexcholupdate = indad[indmin]
+                directioncholupdate = -1
+                ind = np.delete(ind, indad[indmin])
+                x = np.delete(x, indad[indmin])
             else:
-                ind = np.sort(np.concatenate((ind, [indsuptot[mposS]]))) # on elimine la contrainte sup si necessaire
-                x = xt[ind] # on elimine une contrainte de type x=C
-                indexcholupdate = np.where(ind == indsuptot[mposS])[0][0]
-                varcholupdate = indsuptot[mposS]
-                indsuptot = np.delete(indsuptot, mposS)
-                directioncholupdate = 1 # remove
+                indexcholupdate = indsup[indS]
+                varcholupdate = ind[indsup[indS]]
+                directioncholupdate = -1
+                indsuptot = np.concatenate((indsuptot, np.array([ind[indsup[indS]]])))
+                ind = np.delete(ind, indsup[indS])
+                x = np.delete(x, indsup[indS])
         else:
-            STOP = 1
-            pos = np.sort(np.concatenate((ind, indsuptot)))
-            xt = np.zeros((n,1))
-            xt[ind] = xnew
+            xt = np.zeros((n,1)) # keyboard
+            xt[ind] = xnew # keyboard
             xt[indsuptot] = C[indsuptot]
-            indout = np.arange(1,n+1)
-            indout = np.setdiff1d(indout, pos)
-            xnew = xt[indout]
+            indold = ind ## 03/01/2002
+
+            mu = H @ xt - c + A @ lambda_ # calcul des multiplicateurs de lagrange associées aux contraintes
+
+            indsat = np.arange(0,n) # on ne regarde que les contraintes saturées
+            #indsat = np.setdiff1d(indsat, np.concatenate((ind, indsuptot)))
+            indsat = np.empty((0,0))
+ 
+            mm, mpos = (None,None) if indsat.shape[0]==0 else (np.min(mu[indsat]), np.argmin(mu[indsat]))
+            mmS, mposS = np.min(-mu[indsuptot]), np.argmin(-mu[indsuptot])
+
+            
+            if (((mm < -np.sqrt(2.2204e-16)) and (mm is not None)) or ((mmS < -np.sqrt(2.2204e-16)) and (mmS is not None))) and (nbiter < nbitermax):
+                if (len(indsuptot) == 0) or (mm < mmS):
+                    ind = np.sort(np.concatenate((ind, [indsat[mpos]]))) # il faut rajouter une variable
+                    x = xt[ind]
+                    indexcholupdate = np.where(ind == indsat[mpos])[0][0]
+                    varcholupdate = indsat[mpos]
+                    directioncholupdate = 1 # remove
+                else:
+                    ind = np.sort(np.concatenate((ind, [indsuptot[mposS]]))) # on elimine la contrainte sup si necessaire
+                    x = xt[ind] # on elimine une contrainte de type x=C
+                    indexcholupdate = np.where(ind == indsuptot[mposS])[0][0]
+                    varcholupdate = indsuptot[mposS]
+                    indsuptot = np.delete(indsuptot, mposS)
+                    directioncholupdate = 1 # remove
+            else:
+                STOP = 1
+                pos = np.sort(np.concatenate((ind, indsuptot)))
+                xt = np.zeros((n,1))
+                xt[ind] = xnew
+                xt[indsuptot] = C[indsuptot]
+                indout = np.arange(0,n)
+                indout = np.setdiff1d(indout, pos)
+                xnew = xt[indout]
+    
+    return xnew, lambda_, pos
