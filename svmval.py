@@ -38,11 +38,13 @@ def svmval(x, xsup, w, b, kernel='gaussian', kerneloption=1, span=None, framemat
             chunks2 = int(np.ceil(nl/chunksize))
             y2 = np.zeros((nl,1))
             for ch1 in range(chunks1):
-                ind1 = slice(1+(ch1-1)*chunksize, min(nsup, ch1*chunksize))
+                #ind1 = slice(1+(ch1)*chunksize, min(nsup, (ch1+1)*chunksize))
+                ind1 = np.atleast_2d(np.arange((ch1)*chunksize, min(nsup, (ch1+1)*chunksize)))
                 for ch2 in range(chunks2):
-                    ind2 = slice(1+(ch2-1)*chunksize, min(nl, ch2*chunksize))
-                    kchunk = svmkernel(x[ind2,:], kernel, kerneloption, xsup[ind1,:])
-                    y2[ind2] += np.dot(kchunk, w[ind1])
+                    #ind2 = slice(1+(ch2)*chunksize, min(nl, (ch2+1)*chunksize))
+                    ind2 = np.atleast_2d(np.arange((ch2)*chunksize, min(nl, (ch2+1)*chunksize)))
+                    kchunk = svmkernel(x[ind2[0],:], kernel, kerneloption, xsup[ind1[0],:])
+                    y2[ind2[0]] = y2[ind2[0]] + np.atleast_2d(np.matmul(kchunk, w[ind1[0]])).T
             if semiparam:
                 y1 = span * b
                 y = y1 + y2
@@ -93,4 +95,5 @@ def svmval(x, xsup, w, b, kernel='gaussian', kerneloption=1, span=None, framemat
         else:
             y = np.dot(ps, w) + b
 
-    return y, y1, y2
+    #return y, y1, y2
+    return y

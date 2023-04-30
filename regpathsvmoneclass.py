@@ -8,7 +8,7 @@ from svmval import svmval
 def regpathsvmoneclass(xapp, kernel, kerneloption, verbose):
     nuinit = 0.999
     lambdaseuil = 1.1
-    lambdaseuil = int(xapp.shape[0] * 0.01)
+    lambdaseuil = xapp.shape[0] * 0.01
     epsilon = 1e-8
     DOQP = 1
     lambd = 1e-8
@@ -163,8 +163,8 @@ def regpathsvmoneclass(xapp, kernel, kerneloption, verbose):
             # 
             #  initialisation with QP
             if DOQP:
-                c = np.zeros(nbtrain)
-                A = np.ones(nbtrain)
+                c = np.zeros((nbtrain,1))
+                A = np.ones((nbtrain,1))
                 b = lambda_val
                 C = 1
                 alphainit = alpha
@@ -177,7 +177,7 @@ def regpathsvmoneclass(xapp, kernel, kerneloption, verbose):
                     print('*')
                     break
 
-                alpha = np.zeros(nbtrain)
+                alpha = np.zeros((nbtrain,1))
                 alpha[pos] = alphaaux
                 alpha0 = -lambda_val * multiplier
                 fx = (Kapp @ alpha - alpha0) / lambda_val
@@ -208,11 +208,13 @@ def regpathsvmoneclass(xapp, kernel, kerneloption, verbose):
         alpha[right] = 0
         alpha[left] = 1
         indaux = np.where(fx[right] < epsilon)
-        fx[right[indaux]] = epsilon
+        fx[right[indaux[0]]] = epsilon
 
         lambdavec.append(lambda_val)
-        alphamat.append(alpha)
+        #alphamat.append(alpha)
+        alphamat = np.concatenate((alphamat, alpha), axis=1) 
         alpha0vec.append(alpha0)
+        #alpha0vec = np.concatenate((alpha0vec, alpha0), axis=1)
 
         elbow = np.sort(elbow)
         right = np.sort(right)
@@ -232,4 +234,6 @@ def regpathsvmoneclass(xapp, kernel, kerneloption, verbose):
             plt.subplot(2, 1, 2)
             plt.plot(alphamat.T)
             plt.draw()
+    
+    return alphamat, alpha0vec, lambdavec, event
 

@@ -48,12 +48,7 @@ def monqp(H, c, A, b, C, l=0, verbose=0, X=None, ps=None, xinit=None):
     if xinit.size == 0:
         while (np.sum(xnew < 0) > 0 or np.sum(xnew > C[ind]) > 0) and ness < 100:
             ind = np.sort(np.random.permutation(n)[:ncc])
-            aux = np.vstack(
-            [
-            np.hstack([H[ind][:, ind], A[ind, :]]),
-            np.hstack([A[ind, :].T, OO]),
-            ]
-            )
+            aux = np.vstack([np.hstack([H[ind][:, ind], A[ind, :]]),np.hstack([A[ind, :].T, OO]),])
             aux = aux + l * np.eye(aux.shape[0])
             if np.linalg.cond(aux) > 1e-12:
                 newsol = np.linalg.solve(aux, np.hstack([c[ind], b]))
@@ -79,11 +74,12 @@ def monqp(H, c, A, b, C, l=0, verbose=0, X=None, ps=None, xinit=None):
         x = xinit[ind]
         lambda_ = np.ones((ncc, 1))
 
+    
     if np.sum(A == 0):
         ncc = 0
 
     try:
-        U = np.linalg.cholesky(H)
+        U = np.linalg.cholesky(H).T
         testchol = 0
     except:
         testchol = 1
@@ -135,7 +131,7 @@ def monqp(H, c, A, b, C, l=0, verbose=0, X=None, ps=None, xinit=None):
             Cmat = np.ones((len(ind), 1)) * C[indsuptot].T
             #if ce.shape != np.sum(Cmat * H[ind][:, indsuptot], axis=1).shape:
             #    keyboard
-            ce = ce - np.sum(np.multiply(Cmat, H[ind][:, indsuptot]), axis=1)[0]
+            ce = ce - np.atleast_2d(np.sum(np.multiply(Cmat, H[ind][:, indsuptot]), axis=1)).T
             Cmat = C[indsuptot] * np.ones((1, A.shape[1]))
             be = be - np.sum(Cmat * A[indsuptot, :], axis=0).T
 
@@ -148,13 +144,13 @@ def monqp(H, c, A, b, C, l=0, verbose=0, X=None, ps=None, xinit=None):
             # reshape auxH to 2d by adding a dimension of size 1
             #auxH = auxH.reshape(auxH.shape[0], 1)
             try:
-                U = np.linalg.cholesky(auxH)
+                U = np.linalg.cholesky(auxH).T
                 testchol = 0
             except:
                 testchol = 1
         
-            M = At @ (np.linalg.solve(U.T, np.linalg.solve(U, Ae)))
-            d = np.linalg.solve(U.T, np.linalg.solve(U, ce))
+            M = At @ (np.linalg.solve(U, np.linalg.solve(U.T, Ae)))
+            d = np.linalg.solve(U, np.linalg.solve(U.T, ce))
             d = At @ d - be
 
             if np.linalg.cond(M) < l:
@@ -181,11 +177,17 @@ def monqp(H, c, A, b, C, l=0, verbose=0, X=None, ps=None, xinit=None):
             d = (xnew - x) + l
             indad = np.where(xnew < 0)[0]
             indsup = np.where(xnew > C[ind])[0]
-            tI, indmin = np.min(-x[indad] / d[indad]), np.argmin(-x[indad] / d[indad])
-            tS, indS = np.min((C[ind[indsup]] - x[indsup]) / d[indsup]), np.argmin((C[ind[indsup]] - x[indsup]) / d[indsup])
-            if np.isnan(tI):
+            tI = None
+            indmin = None
+            tS = None
+            indS = None
+            if np.sum(xnew < 0) > 0:
+                tI, indmin = np.min(-x[indad] / d[indad]), np.argmin(-x[indad] / d[indad])
+            if np.sum(xnew > C[ind]) > 0:
+                tS, indS = np.min((C[ind[indsup]] - x[indsup]) / d[indsup]), np.argmin((C[ind[indsup]] - x[indsup]) / d[indsup])
+            if tI == None:
                 tI = tS + 1
-            if np.isnan(tS):
+            if tS == None:
                 tS = tI + 1
             t = min(tI, tS)
             x = x + t * d
@@ -217,30 +219,34 @@ def monqp(H, c, A, b, C, l=0, verbose=0, X=None, ps=None, xinit=None):
  
             mm, mpos = (None,None) if indsat.shape[0]==0 else (np.min(mu[indsat]), np.argmin(mu[indsat]))
             mmS, mposS = np.min(-mu[indsuptot]), np.argmin(-mu[indsuptot])
-
-            
-            if (((mm < -np.sqrt(2.2204e-16)) and (mm is not None)) or ((mmS < -np.sqrt(2.2204e-16)) and (mmS is not None))) and (nbiter < nbitermax):
-                if (len(indsuptot) == 0) or (mm < mmS):
-                    ind = np.sort(np.concatenate((ind, [indsat[mpos]]))) # il faut rajouter une variable
-                    x = xt[ind]
-                    indexcholupdate = np.where(ind == indsat[mpos])[0][0]
-                    varcholupdate = indsat[mpos]
-                    directioncholupdate = 1 # remove
+            if (mm is None):
+                mm= 0
+            if (mm is not None): 
+                if (((mm < -np.sqrt(2.2204e-16))) or ((mmS < -np.sqrt(2.2204e-16)))) and (nbiter < nbitermax):
+                    if (len(indsuptot) == 0) or (mm < mmS):
+                        ind = np.sort(np.concatenate((ind, [indsat[mpos]]))) # il faut rajouter une variable
+                        x = xt[ind]
+                        indexcholupdate = np.where(ind == indsat[mpos])[0][0]
+                        varcholupdate = indsat[mpos]
+                        directioncholupdate = 1 # remove
+                    else:
+                        ind = np.sort(np.concatenate((ind, [indsuptot[mposS]]))) # on elimine la contrainte sup si necessaire
+                        x = xt[ind] # on elimine une contrainte de type x=C
+                        indexcholupdate = np.where(ind == indsuptot[mposS])[0][0]
+                        varcholupdate = indsuptot[mposS]
+                        indsuptot = np.delete(indsuptot, mposS)
+                        directioncholupdate = 1 # remove
                 else:
-                    ind = np.sort(np.concatenate((ind, [indsuptot[mposS]]))) # on elimine la contrainte sup si necessaire
-                    x = xt[ind] # on elimine une contrainte de type x=C
-                    indexcholupdate = np.where(ind == indsuptot[mposS])[0][0]
-                    varcholupdate = indsuptot[mposS]
-                    indsuptot = np.delete(indsuptot, mposS)
-                    directioncholupdate = 1 # remove
-            else:
-                STOP = 1
-                pos = np.sort(np.concatenate((ind, indsuptot)))
-                xt = np.zeros((n,1))
-                xt[ind] = xnew
-                xt[indsuptot] = C[indsuptot]
-                indout = np.arange(0,n)
-                indout = np.setdiff1d(indout, pos)
-                xnew = xt[indout]
+                    STOP = 1
+                    pos = np.sort(np.concatenate((ind, indsuptot)))
+                    xt = np.zeros((n,1))
+                    xt[ind] = xnew
+                    xt[indsuptot] = C[indsuptot]
+                    indout = np.arange(0,n)
+                    #indout[pos]=None
+                    indout = np.delete(indout, pos)
+                    xnew = xt
+                    #xnew[indout]=0
+                    xnew = np.delete(xnew, indout)
     
-    return xnew, lambda_, pos
+    return np.atleast_2d(xnew).T, lambda_, pos

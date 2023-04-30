@@ -19,7 +19,7 @@ nbtrain = xapp.shape[0]
 
 # Generate test data
 xtest1, xtest2 = np.meshgrid(np.arange(-1, 1.01, 0.01)*3.5, np.arange(-1, 1.01, 0.01)*3)
-xtest = np.vstack((xtest1.ravel(), xtest2.ravel())).T
+xtest = np.vstack((xtest1.T.ravel(), xtest2.T.ravel())).T
 nn = len(xtest1)
 kernel = 'gaussian'
 kerneloption = np.array([[1]])
@@ -39,13 +39,13 @@ fig1 = plt.figure(1)
 ax1 = fig1.add_subplot(111)
 ax1.plot(xapp[:, 0], xapp[:, 1], '+r')
 ax1.axis([-1.5, 0.5, -1.5, 1])
-for i in range(0, len(lambdavec), 8):
-    w = alphamat[:, i]
-    w0 = -alpha0vec[:, i]
-    ypred = svmval(xtest, xsup, w, w0, kernel, kerneloption, 1)/lambdavec[i]
-    ypred = ypred.reshape(nn, nn)
-    cs = ax1.contour(xtest1, xtest2, ypred, [0], colors='k', linewidths=2)
-    plt.clabel(cs, inline=1, fontsize=10)
+#for i in range(0, len(lambdavec), 8):
+#    w = alphamat[:, i]
+#    w0 = -alpha0vec[i]
+#    ypred = svmval(xtest, xsup, w, w0, kernel, kerneloption, 1)/lambdavec[i]
+#    ypred = ypred.reshape(nn, nn)
+#    cs = ax1.contour(xtest1, xtest2, ypred, [0], colors='k', linewidths=2)
+#    plt.clabel(cs, inline=1, fontsize=10)
 
 # Plot regularization path
 fig2 = plt.figure(2)
@@ -56,10 +56,12 @@ ax2.set_xlabel('$\lambda$', fontsize=16)
 ax2.set_ylabel('$\\alpha$', fontsize=16)
 
 plt.show()
+plt.savefig('lambda.jpg')
 
 #Create a VideoWriter object
 writerObj = FFMpegWriter(fps=2)
-writerObj.setup('exampleoneclassalpha.avi')
+fig2 = plt.figure(2)
+writerObj.setup(fig=fig2,outfile='exampleoneclassalpha.avi')
 
 #Loop over the frames and write each one to the video
 for i in range(len(lambdavec)-2):
@@ -76,26 +78,52 @@ for i in range(len(lambdavec)-2):
 #Close the video writer
 writerObj.finish()
 
-#Create a VideoWriter object
+# #Create a VideoWriter object
+# fig1 = plt.figure(1)
+# v = FFMpegWriter(fps=2)
+# v.setup(fig=fig1,outfile='exampleoneclass.avi')
+
+# xsup = xapp
+# for i in range(len(lambdavec)):
+#     w = alphamat[:,i]
+#     w0 = -alpha0vec[i]
+#     ypred = svmval(xtest, xsup, w, w0, kernel, kerneloption, 1) / lambdavec[i]
+#     ypred = ypred.reshape(nn, nn)
+#     fig1 = plt.figure(1)
+#     fig1.clf()
+#     cc = plt.contour(xtest1, xtest2, ypred, colors='k')
+#     #plt.hold(True)
+#     #plt.setp(hh, linewidth=2)
+#     fig1.set_facecolor('white')
+#     h1 = plt.plot(xapp[:,0], xapp[:,1], '+r')
+#     plt.axis([-3, 3, -3, 3])
+#     F = plt.gcf()
+#     v.grab_frame()
+
+# Create a VideoWriter object
+fig1 = plt.figure()
 v = FFMpegWriter(fps=2)
-v.setup('exampleoneclass.avi')
+
+# Set up the VideoWriter object
+v.setup(fig=fig1, outfile='exampleoneclass.avi')
 
 xsup = xapp
 for i in range(len(lambdavec)):
     w = alphamat[:,i]
-    w0 = -alpha0vec[:,i]
+    w0 = -alpha0vec[i]
     ypred = svmval(xtest, xsup, w, w0, kernel, kerneloption, 1) / lambdavec[i]
     ypred = ypred.reshape(nn, nn)
-    fig1 = plt.figure(1)
+    
+    # Clear the figure and create a new plot
     fig1.clf()
-    cc, hh = plt.contour(xtest1, xtest2, ypred, [0, 0], colors='k')
-    plt.hold(True)
-    plt.setp(hh, linewidth=2)
+    plt.contour(xtest1, xtest2, ypred, colors='k')
     fig1.set_facecolor('white')
-    h1 = plt.plot(xapp[:,0], xapp[:,1], '+r')
+    plt.plot(xapp[:,0], xapp[:,1], '+r')
     plt.axis([-3, 3, -3, 3])
+    
+    # Grab the current frame and add it to the video
     F = plt.gcf()
     v.grab_frame()
 
-#Close the video writer
+# Finish the video
 v.finish()
